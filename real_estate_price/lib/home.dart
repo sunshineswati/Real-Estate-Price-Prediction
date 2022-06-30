@@ -1,10 +1,7 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
-
-class DataModel {
-  String location;
-
-  DataModel({required this.location});
-}
+import 'package:http/http.dart' as http;
 
 class Home extends StatefulWidget {
   const Home({Key? key}) : super(key: key);
@@ -16,19 +13,45 @@ class Home extends StatefulWidget {
 class _HomeState extends State<Home> {
   List<bool> bhkSelected = [false, false, false, false, false, false];
   List<bool> bathSelected = [false, false, false, false, false, false];
-  List<DataModel> vehicleData = [
-    DataModel(location: 'Sarojni nagar'),
-    DataModel(location: 'kamlapati'),
-    DataModel(location: 'nehru nagar'),
-  ];
-  //List<String> locations = ['sarojni nagar', 'palam', 'nehru nagar'];
-  List<String> locations = ['A', 'B', 'C', 'D'];
-  String _selectedLocation = '';
-  final area = TextEditingController();
+  List locations = [];
+
+  var _selectedLocation;
+  TextEditingController areaController = TextEditingController();
   int bhk = 0, bath = 0;
-  double estimatedprice = 20;
+  var area;
+  var estimatedprice;
+  Future<void> getEstimatedPrice() async {
+    var url = Uri.parse(
+        'https://real-state-price-prediction.herokuapp.com/predict_home_price');
+    var response = await http.post(url, body: {
+      'total_sqft': '$area',
+      'location': '$_selectedLocation',
+      'bhk': '$bhk',
+      'bath': '$bath'
+    });
+    Map data = jsonDecode(response.body);
+    estimatedprice = data['estimated_price'].toStringAsFixed(2);
+  }
+
+  Future<void> getLocations() async {
+    var url = Uri.parse(
+        'https://real-state-price-prediction.herokuapp.com/get_location_names');
+    var response = await http.get(url);
+    Map data = jsonDecode(response.body);
+    setState(() {
+      locations = (data['locations']);
+    });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    getLocations();
+  }
+
   @override
   Widget build(BuildContext context) {
+    getLocations();
     return Scaffold(
       resizeToAvoidBottomInset: false,
       body: Stack(
@@ -36,9 +59,7 @@ class _HomeState extends State<Home> {
           Container(
             decoration: const BoxDecoration(
               image: DecorationImage(
-                  image: NetworkImage(
-                      'https://images.unsplash.com/photo-1557683316-973673baf926?ixlib=rb-1.2.1&ixid=MnwxMjA3fDB8MHxwaG90by1yZWxhdGVkfDE4fHx8ZW58MHx8fHw%3D&w=1000&q=80'),
-                  fit: BoxFit.fill),
+                  image: AssetImage('assets/1.jpg'), fit: BoxFit.fill),
             ),
           ),
           Column(
@@ -75,7 +96,18 @@ class _HomeState extends State<Home> {
                       padding:
                           const EdgeInsets.only(top: 10, left: 25, right: 24),
                       child: TextField(
-                        controller: area,
+                        keyboardType: TextInputType.number,
+                        controller: areaController,
+                        onChanged: (value) {
+                          setState(() {
+                            area = value;
+                            print(area);
+                          });
+                        },
+                        style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white),
                         decoration: InputDecoration(
                             fillColor: Colors.white,
                             enabledBorder: OutlineInputBorder(
@@ -194,40 +226,68 @@ class _HomeState extends State<Home> {
                       });
                     },
                   ),
-                  SizedBox(
-                      height: 50,
-                      width: 175,
-                      child: DropdownButton<String>(
-                        items: <String>['sarojni nagar', 'nehru nagar phase a', 'ashoka garden', ].map((String value) {
-                          return DropdownMenuItem<String>(
-                            value: value,
-                            child: Text(value),
-                          );
-                        }).toList(),
-                        onChanged: (_) {},
-                      )),
-                  ElevatedButton(
-                    child: const Text(
-                      'Predict Price',
-                      style: TextStyle(color: Colors.white),
-                    ),
-                    onPressed: () {},
-                    style: ElevatedButton.styleFrom(
-                        primary: Colors.blue[900],
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 30, vertical: 10),
-                        textStyle: const TextStyle(
-                            fontSize: 25, fontWeight: FontWeight.w400)),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 10),
+                    child: SizedBox(
+                        height: 50,
+                        width: 250,
+                        child: Center(
+                          child: DropdownButtonFormField(
+                            isExpanded: true,
+                            decoration: const InputDecoration(
+                                contentPadding: EdgeInsets.only(left: 10),
+                                labelText: 'Select Location',
+                                labelStyle: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold)),
+                            dropdownColor: Colors.lightBlue[900],
+                            value: _selectedLocation,
+                            items: locations
+                                .map((loc) => DropdownMenuItem(
+                                    value: loc,
+                                    child: Text(
+                                      loc,
+                                      style: const TextStyle(
+                                          fontSize: 20, color: Colors.white),
+                                    )))
+                                .toList(),
+                            onChanged: (loc) => setState(() {
+                              _selectedLocation = loc.toString();
+                              print(_selectedLocation);
+                            }),
+                          ),
+                        )),
                   ),
                   Padding(
                     padding: const EdgeInsets.only(top: 30),
-                    child: Text(
-                      'Estimated Price: $estimatedprice lakhs',
-                      style: const TextStyle(
-                          fontSize: 25,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white),
+                    child: ElevatedButton(
+                      child: const Text(
+                        'Predict Price',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                      onPressed: () {
+                        getEstimatedPrice();
+                      },
+                      style: ElevatedButton.styleFrom(
+                          primary: Colors.blue[900],
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 30, vertical: 10),
+                          textStyle: const TextStyle(
+                              fontSize: 25, fontWeight: FontWeight.w400)),
                     ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 30),
+                    child: estimatedprice != null
+                        ? Text(
+                            'Estimated Price: $estimatedprice lakhs',
+                            style: const TextStyle(
+                                fontSize: 25,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white),
+                          )
+                        : null,
                   ),
                 ],
               ),
